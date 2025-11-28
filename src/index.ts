@@ -21,7 +21,7 @@ class MentraOSApp extends AppServer{
             
             const command = data.text.toLowerCase();
 
-            if(command.includes('hey')){
+            if(command.includes('whats your name')){
                 (async () =>{
                     try{
                         const photo = await session.camera.requestPhoto();
@@ -34,7 +34,7 @@ class MentraOSApp extends AppServer{
         })
     }
 
-    private async processPhoto(session: AppSession): Promise<void>{
+    private async processPhoto(session: AppSession, photo): Promise<void>{
 
     }
 }
