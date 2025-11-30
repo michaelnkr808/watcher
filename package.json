@@ -2,6 +2,11 @@
   "name": "mentra-facescan",
   "module": "index.ts",
   "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "bun src/index.ts",
+    "dev": "bun --host src/index.ts"
+  },
   "devDependencies": {
     "@types/bun": "latest"
   },

@@ -37,3 +37,7 @@ def get_photo_by_id(photo_id: int):
 def get_results_for_photo(photo_id:int):
     with SessionLocal() as session:
         return session.query(SearchResult).filter(SearchResult.photo_id == photo_id).all()
+
+def get_most_recent_photo():
+    with SessionLocal() as session:
+        return session.query(Photo).order_by(Photo.id.desc()).first()

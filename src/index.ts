@@ -14,7 +14,9 @@ class MentraOSApp extends AppServer{
     }
 
     protected async onSession(session: AppSession, sessionId: string, userId: string): Promise<void>{
+        session.layouts.showTextWall("App spun up")
         console.log("App has begun running");
+        await session.audio.speak('Hello from your app!');
 
         session.events.onTranscription((data) => {
             if(!data.isFinal) return;
