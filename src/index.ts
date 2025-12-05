@@ -1,4 +1,5 @@
 import { AppServer, AppSession} from '@mentra/sdk';
+import FormData from 'form-data';
 
 const PACKAGE_NAME = process.env.PACKAGE_NAME ?? (() => {throw new Error('PACKAGE_NAME is not set in .env file'); })();
 const MENTRAOS_API_KEY = process.env.MENTRAOS_API_KEY ?? (() => { throw new Error('MENTRAOS_API_KEY is not set in .env file'); })();
@@ -17,45 +18,76 @@ class MentraOSApp extends AppServer{
         })
     }
 
-    protected async onSession(session: AppSession, sessionId: string, userId: string): Promise<void>{
+    protected override async onSession(session: AppSession, sessionId: string, userId: string): Promise<void>{
         session.layouts.showTextWall("App has started")
         console.log("App has begun running");
 
         session.events.onTranscription(async(data) => {
-
             console.log('Transcription received:', data.text, 'isFinal:', data.isFinal);
+        
+            if (this.isCollecting && data.isFinal) {
+                const text = data.text.toLowerCase();
+                
+                if (text.includes("nice to meet you") || text.includes("nice meeting you") || text.includes("catch you later")) {
+                    this.isCollecting = false;
+                    const fullConversation = this.conversationBuffer.join(' ');
+                    console.log('📝 Farewell detected! Conversation:', fullConversation);
+                    session.layouts.showTextWall(`Heard: ${fullConversation}`);
+                    // TODO: Send to Gemini
+                    this.conversationBuffer = [];
+                    return;
+                }
+            
+                this.conversationBuffer.push(data.text);
+                console.log('📝 Buffered:', data.text);
+                return;
+            }
+
             if(!data.isFinal) return;
             
             const command = data.text.toLowerCase();
             console.log('🎯 Processing command:', command);
 
+            
+
+            // Trigger phrase to start collecting
             if(command.includes("hey, what's your name") || command.includes("hey, whats your name")){
-                    try{
-                        this.isCollecting = true;
-                        this.conversationBuffer = [];
+                if (!session.capabilities?.hasCamera) {
+                    console.error('No camera available');
+                    return;
+                }
+                try {
+                    this.isCollecting = true;
+                    this.conversationBuffer = [];
+                    
+                    console.log('Starting photo request...');
+                    session.camera.requestPhoto({
+                        size: 'small',
+                        compress: 'medium'
+                    })
+                        .then(async photo => {
+                            console.log(`Photo captured: ${photo.filename}`)
+                            await session.audio.speak("Photo Captured")
+                        })
+                        .catch(err => {
+                            console.error("Photo failed", err);
+                        });
+                    session.layouts.showTextWall('Visage is listening...');
 
-                        session.layouts.showTextWall('Visage is listening...')
-                        session.layouts.showTextWall('Photo captured')
-                        await session.audio.speak("Photo captured")
-                        const photo = await session.camera.requestPhoto();
-                        console.log(`Photo captured: ${photo.filename}`);
-
-                        if(command.includes("nice to meet you") || command.includes("it was nice meeting you") || command.includes("ill catch you later")){
+                    setTimeout(async () => {
+                        if (this.isCollecting) {
                             this.isCollecting = false;
+                            const fullConversation = this.conversationBuffer.join(' ');
+                            console.log('📝 Timeout! Conversation:', fullConversation);
+                            session.layouts.showTextWall(`Heard: ${fullConversation}`);
+                            // TODO: Send to Gemini
+                            this.conversationBuffer = [];
                         }
-                        else{
-                            setTimeout(async () => {
-                                this.isCollecting = false;
-                                const fullConversation = this.conversationBuffer.join(' ');
-                                console.log('📝Full conversation', fullConversation);
-                                session.layouts.showTextWall(`Heard: ${fullConversation}`);
-    
-                                this.conversationBuffer = [];
-                            }, 20000);
-                        }
-                    }catch(err){
-                        console.error('Failed to capture photo', err);
-                    }
+                    }, 20000);
+
+                } catch(err) {
+                    console.error('Failed to capture photo', err);
+                }
             }
         });
 
