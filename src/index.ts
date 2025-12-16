@@ -2,11 +2,11 @@ import { AppServer, AppSession} from '@mentra/sdk';
 import { GoogleGenAI } from '@google/genai'
 import FormData from 'form-data';
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY ?? (() => { throw new Error("GEMINI_API_KEY is not set in .env file");})();
-const PACKAGE_NAME = process.env.PACKAGE_NAME ?? (() => {throw new Error('PACKAGE_NAME is not set in .env file'); })();
-const MENTRAOS_API_KEY = process.env.MENTRAOS_API_KEY ?? (() => { throw new Error('MENTRAOS_API_KEY is not set in .env file'); })();
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY ?? (() => { throw new Error("GEMINI_API_KEY is not set in .env file"); })();
+const PACKAGE_NAME = process.env.PACKAGE_NAME ?? (() => {throw new Error("PACKAGE_NAME is not set in .env file"); })();
+const MENTRAOS_API_KEY = process.env.MENTRAOS_API_KEY ?? (() => { throw new Error("MENTRAOS_API_KEY is not set in .env file"); })();
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000';
 const PORT = parseInt(process.env.PORT || '3000');
-
 const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
 async function extractPersonInfo(conversation: string): Promise<{
@@ -78,7 +78,7 @@ class MentraOSApp extends AppServer{
                         const personInfo = await extractPersonInfo(fullConversation);
                         console.log('Extracted info:', personInfo);
 
-                        await fetch("http://localhost:8000/people", {
+                        await fetch(`${BACKEND_URL}/people`, {
                             method: "POST",
                             headers: {"Content-Type": "application/json"},
                             body: JSON.stringify(personInfo)
@@ -127,7 +127,7 @@ class MentraOSApp extends AppServer{
                             const personInfo = await extractPersonInfo(fullConversation);
                             console.log('📋 Extracted info:', personInfo);
 
-                            await fetch("http://localhost:8000/people",{
+                            await fetch(`${BACKEND_URL}/people`,{
                                 method: "POST",
                                 headers: {"Content-Type": "application/json"},
                                 body: JSON.stringify(personInfo)
@@ -148,7 +148,7 @@ class MentraOSApp extends AppServer{
     private async uploadPhotoToAPI(photo: {filename: string, buffer: Buffer, mimeType?: string }):Promise<void>{
         const formData = new FormData();
         formData.append('photo', new Blob([photo.buffer], {type: photo.mimeType || 'image/jpeg'}), photo.filename);
-        const response = await fetch('http://localhost:8000/api/scan', {method: 'POST', body: formData});
+        const response = await fetch(`${BACKEND_URL}/api/scan`, {method: 'POST', body: formData});
 
         if(!response.ok){
             throw new Error(`Upload failed: ${response.status}`);
