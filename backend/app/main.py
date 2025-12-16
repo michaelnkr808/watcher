@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 class Person(BaseModel):
-    name: str
+    name: str | None = None
     workplace: str | None = None
     context: str | None = None
     details: str | None = None
