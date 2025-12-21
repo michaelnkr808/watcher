@@ -98,7 +98,7 @@ def find_matching_face(query_encoding: list, threshold: float = 0.6):
         ).order_by('distance').first()
         
         if result and result.distance < threshold:
-            return result.FaceEncoding, result.distance
+            return result[0], result.distance
         return None, None
 
 # Person info helper functions ---------------------------------------
