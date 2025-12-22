@@ -1,13 +1,8 @@
-import { AppServer, AppSession} from '@mentra/sdk';
+import { AppServer, AppSession } from '@mentra/sdk';
 import { GoogleGenAI } from '@google/genai'
-import FormData from 'form-data';
+import { config } from './config';
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY ?? (() => { throw new Error("GEMINI_API_KEY is not set in .env file"); })();
-const PACKAGE_NAME = process.env.PACKAGE_NAME ?? (() => {throw new Error("PACKAGE_NAME is not set in .env file"); })();
-const MENTRAOS_API_KEY = process.env.MENTRAOS_API_KEY ?? (() => { throw new Error("MENTRAOS_API_KEY is not set in .env file"); })();
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000';
-const PORT = parseInt(process.env.PORT || '3000');
-const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+const ai = new GoogleGenAI({ apiKey: config.GEMINI_API_KEY });
 
 async function extractPersonInfo(conversation: string): Promise<{
     name?: string;
@@ -42,24 +37,24 @@ async function extractPersonInfo(conversation: string): Promise<{
     }
 }
 
-class MentraOSApp extends AppServer{
+class MentraOSApp extends AppServer {
     private conversationBuffer: string[] = []
     private isCollecting = false;
     private capturedPhoto: Buffer | null = null;
 
-    constructor(){
+    constructor() {
         super({
-            packageName: PACKAGE_NAME,
-            apiKey: MENTRAOS_API_KEY,
-            port: PORT,
+            packageName: config.PACKAGE_NAME,
+            apiKey: config.MENTRAOS_API_KEY,
+            port: config.PORT,
         })
     }
 
-    protected override async onSession(session: AppSession, sessionId: string, userId: string): Promise<void>{
+    protected override async onSession(session: AppSession, sessionId: string, userId: string): Promise<void> {
         session.layouts.showTextWall("App has started")
         console.log("App has begun running");
 
-        session.events.onTranscription(async(data) => {
+        session.events.onTranscription(async (data) => {
             console.log('Transcription received:', data.text, 'isFinal:', data.isFinal);
 
             // Handle conversation collection
@@ -67,28 +62,28 @@ class MentraOSApp extends AppServer{
                 if (data.isFinal) {
                     this.conversationBuffer.push(data.text);
                     console.log('📝 Buffered:', data.text);
-                    
+
                     const text = data.text.toLowerCase();
-                    
+
                     // Check for farewell phrase
                     if (text.includes("nice to meet you") || text.includes("nice meeting you") || text.includes("catch you later")) {
                         this.isCollecting = false;
                         const fullConversation = this.conversationBuffer.join(' ');
                         console.log('📝 Farewell detected! Conversation:', fullConversation);
-                        
+
                         const personInfo = await extractPersonInfo(fullConversation);
                         console.log('Extracted info:', personInfo);
-                        
+
                         const base64Image = this.capturedPhoto?.toString('base64');
 
-                        if(!base64Image){
+                        if (!base64Image) {
                             console.error('❌ No photo was captured');
                             return;
                         }
 
-                        await fetch(`${BACKEND_URL}/api/workflow1/first-meeting`, {
+                        const response = await fetch(`${BACKEND_URL}/api/workflow1/first-meeting`, {
                             method: "POST",
-                            headers: {"Content-Type": "application/x-www-form-urlencoded"},
+                            headers: { "Content-Type": "application/x-www-form-urlencoded" },
                             body: new URLSearchParams({
                                 image_data: base64Image,
                                 name: personInfo.name || '',
@@ -96,26 +91,30 @@ class MentraOSApp extends AppServer{
                             })
                         });
 
+                        if (!response.ok) {
+                            throw new Error(`❌ Backend error: ${await response.text()}`);
+                        }
+
                         this.conversationBuffer = [];
                         return;
                     }
                 }
-                return; 
+                return;
             }
 
-            if(!data.isFinal) return;
-            
+            if (!data.isFinal) return;
+
             const command = data.text.toLowerCase();
             console.log('🎯 Processing command:', command);
 
-            
+
 
             // Trigger phrase to start collecting
-            if(command.includes("hey, what's your name") || command.includes("hey, whats your name")){
+            if (command.includes("hey, what's your name") || command.includes("hey, whats your name")) {
                 try {
                     this.isCollecting = true;
                     this.conversationBuffer = [];
-                    
+
                     console.log('Starting photo request...');
                     session.camera.requestPhoto({
                         size: 'small',
@@ -136,37 +135,41 @@ class MentraOSApp extends AppServer{
                             this.isCollecting = false;
                             const fullConversation = this.conversationBuffer.join(' ');
                             console.log('📝 Timeout! Conversation:', fullConversation);
-                            
+
                             const personInfo = await extractPersonInfo(fullConversation);
                             console.log('📋 Extracted info:', personInfo);
 
-                        const base64Image = this.capturedPhoto?.toString('base64');
+                            const base64Image = this.capturedPhoto?.toString('base64');
 
-                        if (!base64Image) {
-                            console.error('❌ No photo was captured');
+                            if (!base64Image) {
+                                console.error('❌ No photo was captured');
+                                this.conversationBuffer = [];
+                                return;
+                            }
+
+                            const response = await fetch(`${BACKEND_URL}/api/workflow1/first-meeting`, {
+                                method: "POST",
+                                headers: {
+                                    'Content-Type': 'application/x-www-form-urlencoded',
+                                },
+                                body: new URLSearchParams({
+                                    image_data: base64Image,
+                                    name: personInfo.name || '',
+                                    conversation_context: `${personInfo.workplace || ''} ${personInfo.context || ''} ${personInfo.details || ''}`.trim()
+                                })
+                            });
+
+                            if (!response.ok) {
+                                throw new Error(`❌ Backend error: ${response.status} ${response.statusText}`);
+                            }
+
+                            console.log('✅ Saved to database');
                             this.conversationBuffer = [];
-                            return;
-                        }
-
-                        await fetch(`${BACKEND_URL}/api/workflow1/first-meeting`, {
-                            method: "POST",
-                            headers: {
-                                'Content-Type': 'application/x-www-form-urlencoded',
-                            },
-                            body: new URLSearchParams({
-                                image_data: base64Image,
-                                name: personInfo.name || '',
-                                conversation_context: `${personInfo.workplace || ''} ${personInfo.context || ''} ${personInfo.details || ''}`.trim()
-                            })
-                        });
-
-                        console.log('✅ Saved to database');
-                        this.conversationBuffer = [];
-                        this.capturedPhoto = null;  
+                            this.capturedPhoto = null;
                         }
                     }, 20000);
 
-                } catch(err) {
+                } catch (err) {
                     console.error('Failed to capture photo', err);
                 }
             }
