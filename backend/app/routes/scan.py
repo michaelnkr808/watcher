@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, Form
 from pydantic import BaseModel
 from services.database import (
     save_photo, 
@@ -14,16 +14,6 @@ from services.face_detection import detect_and_encode_face
 import base64
 
 # ==================== PYDANTIC MODELS ====================
-
-class PersonCreate(BaseModel):
-    name: str | None = None
-    workplace: str | None = None
-    context: str | None = None
-    details: str | None = None
-
-class PhotoUpload(BaseModel):
-    filename: str | None = None
-    image_data: str  
 
 class TranscriptData(BaseModel):
     raw_text: str
@@ -50,33 +40,33 @@ def read_root():
 
 @app.post("/workflow1/first-meeting")
 async def first_meeting(
-    image_file: UploadFile = File(...),
+    image_data: str = Form(...),  # Base64-encoded image from glasses
     name: str = Form(""),
     conversation_context: str = Form("")
 ):
     """
     Workflow 1: First time meeting someone
-    - Upload photo from MentraLive glasses
+    - Receives base64-encoded image from MentraLive glasses
     - Optionally provide name from voice transcription
     - Detect face, generate encoding, store in database
     """
     try:
+        # Convert base64 to bytes
+        image_bytes = base64.b64decode(image_data)
         
+        # Convert empty strings to None
         name = name if name else None
         conversation_context = conversation_context if conversation_context else None
-
-        # Read image data
-        image_data = await image_file.read()
         
         # Save photo to database
         photo_id = save_photo(
-            filename=image_file.filename,
-            image_data=image_data
+            filename="glasses_capture.jpg",
+            image_data=image_bytes
         )
         print(f"✅ Saved photo #{photo_id}")
         
         # Detect face and generate encoding using DeepFace
-        face_result = detect_and_encode_face(image_data)
+        face_result = detect_and_encode_face(image_bytes)
         
         if not face_result:
             raise HTTPException(status_code=400, detail="No face detected in image")
@@ -129,19 +119,19 @@ async def first_meeting(
 # ==================== WORKFLOW 2: RECOGNIZE PERSON ====================
 
 @app.post("/workflow2/recognize")
-async def recognize_person(image_file: UploadFile = File(...)):
+async def recognize_person(image_data: str = Form(...)):  # Base64-encoded image
     """
     Workflow 2: Recognize someone you've met before
-    - Upload photo from MentraLive glasses
+    - Receives base64-encoded image from MentraLive glasses
     - Match face against stored encodings
     - Return person's info if match found
     """
     try:
-        # Read image data
-        image_data = await image_file.read()
+        # Convert base64 to bytes
+        image_bytes = base64.b64decode(image_data)
         
         # Detect face and generate encoding
-        face_result = detect_and_encode_face(image_data)
+        face_result = detect_and_encode_face(image_bytes)
         
         if not face_result:
             raise HTTPException(status_code=400, detail="No face detected in image")
