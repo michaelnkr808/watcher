@@ -45,6 +45,7 @@ async function extractPersonInfo(conversation: string): Promise<{
 class MentraOSApp extends AppServer{
     private conversationBuffer: string[] = []
     private isCollecting = false;
+    private capturedPhoto: Buffer | null = null;
 
     constructor(){
         super({
@@ -77,11 +78,22 @@ class MentraOSApp extends AppServer{
                         
                         const personInfo = await extractPersonInfo(fullConversation);
                         console.log('Extracted info:', personInfo);
+                        
+                        const base64Image = this.capturedPhoto?.toString('base64');
 
-                        await fetch(`${BACKEND_URL}/people`, {
+                        if(!base64Image){
+                            console.error('❌ No photo was captured');
+                            return;
+                        }
+
+                        await fetch(`${BACKEND_URL}/api/workflow1/first-meeting`, {
                             method: "POST",
-                            headers: {"Content-Type": "application/json"},
-                            body: JSON.stringify(personInfo)
+                            headers: {"Content-Type": "application/x-www-form-urlencoded"},
+                            body: new URLSearchParams({
+                                image_data: base64Image,
+                                name: personInfo.name || '',
+                                conversation_context: `${personInfo.workplace || ''} ${personInfo.context || ''} ${personInfo.details || ''}`.trim()
+                            })
                         });
 
                         this.conversationBuffer = [];
@@ -111,6 +123,7 @@ class MentraOSApp extends AppServer{
                     })
                         .then(async photo => {
                             console.log(`Photo captured: ${photo.filename}`)
+                            this.capturedPhoto = photo.buffer
                             await session.audio.speak("Photo Captured")
                         })
                         .catch(err => {
@@ -127,13 +140,29 @@ class MentraOSApp extends AppServer{
                             const personInfo = await extractPersonInfo(fullConversation);
                             console.log('📋 Extracted info:', personInfo);
 
-                            await fetch(`${BACKEND_URL}/people`,{
-                                method: "POST",
-                                headers: {"Content-Type": "application/json"},
-                                body: JSON.stringify(personInfo)
-                            });
+                        const base64Image = this.capturedPhoto?.toString('base64');
 
+                        if (!base64Image) {
+                            console.error('❌ No photo was captured');
                             this.conversationBuffer = [];
+                            return;
+                        }
+
+                        await fetch(`${BACKEND_URL}/api/workflow1/first-meeting`, {
+                            method: "POST",
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded',
+                            },
+                            body: new URLSearchParams({
+                                image_data: base64Image,
+                                name: personInfo.name || '',
+                                conversation_context: `${personInfo.workplace || ''} ${personInfo.context || ''} ${personInfo.details || ''}`.trim()
+                            })
+                        });
+
+                        console.log('✅ Saved to database');
+                        this.conversationBuffer = [];
+                        this.capturedPhoto = null;  
                         }
                     }, 20000);
 
@@ -145,19 +174,6 @@ class MentraOSApp extends AppServer{
 
         await session.audio.speak("Visage has started");
     }
-    private async uploadPhotoToAPI(photo: {filename: string, buffer: Buffer, mimeType?: string }):Promise<void>{
-        const formData = new FormData();
-        formData.append('photo', new Blob([photo.buffer], {type: photo.mimeType || 'image/jpeg'}), photo.filename);
-        const response = await fetch(`${BACKEND_URL}/api/scan`, {method: 'POST', body: formData});
-
-        if(!response.ok){
-            throw new Error(`Upload failed: ${response.status}`);
-        }
-
-        const result = await response.json();
-        console.log('Upload result', result); 
-    }
-       
 }
 
 const app = new MentraOSApp();
