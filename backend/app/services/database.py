@@ -3,14 +3,11 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine, func
 from sqlalchemy.orm import sessionmaker
 from models.face_scan import Base, Photo, Transcript, DetectedFace, FaceEncoding, PersonInfo
+from config import config
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL")
-if not DATABASE_URL:
-    raise ValueError("DATABASE_URL environment variable is not set!")
-
-engine = create_engine(DATABASE_URL)
+engine = create_engine(config.DATABASE_URL)
 
 SessionLocal = sessionmaker(bind=engine)
 
@@ -85,11 +82,14 @@ def save_face_encoding(face_id: int, encoding: list, model_name: str = "Facenet"
             session.rollback()
             raise e
 
-def find_matching_face(query_encoding: list, threshold: float = 0.6):
+def find_matching_face(query_encoding: list, threshold: float = None):
     """
     Find a matching face using pgvector similarity search
     Returns the best match if distance < threshold, else None
     """
+
+    if threshold is None:
+        threshold = config.FACE_MATCH_THRESHOLD
     with SessionLocal() as session:
         # Use pgvector's <-> operator for L2 distance
         result = session.query(

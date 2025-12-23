@@ -12,6 +12,7 @@ from services.database import (
 )
 from services.face_detection import detect_and_encode_face
 import base64
+from config import config
 
 # ==================== PYDANTIC MODELS ====================
 
@@ -139,7 +140,7 @@ async def recognize_person(image_data: str = Form(...)):  # Base64-encoded image
         query_encoding = face_result['encoding']
         
         # Find matching face in database
-        matched_encoding, distance = find_matching_face(query_encoding, threshold=0.6)
+        matched_encoding, distance = find_matching_face(query_encoding, threshold=config.FACE_MATCH_THRESHOLD)
         
         if not matched_encoding:
             return {

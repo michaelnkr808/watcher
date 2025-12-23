@@ -4,6 +4,7 @@ from deepface import DeepFace
 from PIL import Image
 import cv2 as cv
 from typing import Dict, Optional, List
+from config import config
 
 def detect_and_encode_face(image_data: bytes) -> Optional[Dict]:
     """
@@ -48,6 +49,11 @@ def detect_and_encode_face(image_data: bytes) -> Optional[Dict]:
         
         # Extract bounding box
         bbox = face_data['facial_area']
+
+        confidence = face_data.get('face_confidence', 0.99)
+        if confidence < config.FACE_CONFIDENCE_MIN:
+            print(f"⚠️  Face confidence too low: {confidence}")
+            return None
         
         # Crop the face from the image (optional, for storage)
         x, y, w, h = bbox['x'], bbox['y'], bbox['w'], bbox['h']
@@ -60,7 +66,7 @@ def detect_and_encode_face(image_data: bytes) -> Optional[Dict]:
         return {
             'encoding': face_data['embedding'],  # 128-d vector
             'bbox': bbox,                        # {x, y, w, h}
-            'confidence': face_data.get('face_confidence', 0.99),
+            'confidence': confidence,
             'cropped_face': cropped_face_bytes
         }
         
@@ -124,25 +130,6 @@ def detect_multiple_faces(image_data: bytes) -> List[Dict]:
     except Exception as e:
         print(f"❌ Error detecting multiple faces: {e}")
         return []
-
-
-def compare_faces(encoding1: List[float], encoding2: List[float]) -> float:
-    """
-    Compare two face encodings using Euclidean distance
-    
-    Args:
-        encoding1: First 128-d face encoding
-        encoding2: Second 128-d face encoding
-        
-    Returns:
-        Distance between encodings (lower = more similar)
-        Typically: < 0.6 = same person, >= 0.6 = different person
-    """
-    encoding1_arr = np.array(encoding1)
-    encoding2_arr = np.array(encoding2)
-    
-    distance = np.linalg.norm(encoding1_arr - encoding2_arr)
-    return float(distance)
 
 
 def get_face_from_center(faces: List[Dict]) -> Optional[Dict]:
