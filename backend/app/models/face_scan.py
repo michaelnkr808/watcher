@@ -72,7 +72,7 @@ class PersonInfo(Base):
     __tablename__ = "person_info"
     
     id = Column(Integer, primary_key=True, autoincrement=True)
-    face_id = Column(Integer, ForeignKey("detected_faces.id", ondelete="CASCADE"), unique=True, nullable=False)  # ← CHANGED to nullable=False
+    face_id = Column(Integer, ForeignKey("detected_faces.id", ondelete="CASCADE"), unique=True, nullable=True)
     
     name = Column(String, nullable=True)
     conversation_context = Column(Text, nullable=True)
