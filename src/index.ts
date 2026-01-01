@@ -4,6 +4,18 @@ import { config } from './config';
 
 const ai = new GoogleGenAI({ apiKey: config.GEMINI_API_KEY });
 
+interface RecognitionResult {
+    success: boolean;
+    recognized: boolean;
+    person?: {
+        name: string;
+        conversation_context: string;
+        first_met_at: string;
+        last_seen_at: string;
+        times_met: number;
+    };
+}
+
 async function extractPersonInfo(conversation: string): Promise<{
     name?: string;
     workplace?: string;
@@ -202,6 +214,45 @@ class MentraOSApp extends AppServer {
 
                 } catch (err) {
                     console.error('Failed to capture photo', err);
+                }
+            }
+            if (command.includes("who is this") || command.includes("do i know them") || command.includes("who is this person") || command.includes("who is that") || command.includes("who's that") || command.includes("who's that again") || command.includes("remind me who that is")){
+                try{
+                    const photo = await session.camera.requestPhoto({
+                        size: 'small',
+                        compress: 'medium'
+                    });
+
+                    console.log(`📸 Photo captured for recognition: ${photo.filename}`);
+                    
+                    const base64Image = photo.buffer.toString('base64');
+
+                    const response = await fetch(`${config.BACKEND_URL}/api/workflow2/recognize`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                        body: new URLSearchParams({ image_data: base64Image })
+                    });
+
+                    if (!response.ok){
+                        const errorText = await response.text();
+                        console.error(`❌ Recognition failed: ${response.status} — ${errorText}`);
+                        await session.audio.speak("Visage couldn't recognize this person");
+                        return;
+                    }
+
+                    const result = await response.json() as RecognitionResult;
+
+                    if (result.recognized && result.person){
+                        await session.audio.speak(
+                            `That's ${result.person.name}. ${result.person.conversation_context}`
+                        );
+                    }else {
+                        await session.audio.speak("I don't think we've met them before");
+                    }
+
+                }catch (err){
+                    console.error('❌ Recognition failed:', err);
+                    await session.audio.speak("I couldn't recognize this person");
                 }
             }
         });
