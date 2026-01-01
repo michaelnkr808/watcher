@@ -124,6 +124,13 @@ def get_person_info_by_face_id(face_id:int):
     with SessionLocal() as session:
         return session.query(PersonInfo).filter(PersonInfo.face_id == face_id).first()
 
+def get_person_info_by_name(name: str):
+    """Get person info by name (case-insensitive partial match)"""
+    with SessionLocal() as session:
+        return session.query(PersonInfo).filter(
+            PersonInfo.name.ilike(f"%{name}%")
+        ).first()
+
 def update_person_last_seen(person_info_id: int):
     """Update last seen timestamp and increment times_met"""        
     with SessionLocal() as session:

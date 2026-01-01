@@ -8,6 +8,7 @@ from services.database import (
     save_transcript,
     find_matching_face,
     get_person_info_by_face_id,
+    get_person_info_by_name,
     update_person_last_seen
 )
 from services.face_detection import detect_and_encode_face
@@ -33,6 +34,7 @@ def read_root():
         "endpoints": {
             "POST /workflow1/first-meeting": "Capture photo + name for first meeting",
             "POST /workflow2/recognize": "Recognize person from photo",
+            "GET /people/search": "Search for person by name",
             "POST /transcript": "Save conversation transcript"
         }
     }
@@ -181,6 +183,39 @@ async def recognize_person(image_data: str = Form(...)):  # Base64-encoded image
         raise
     except Exception as e:
         print(f"❌ Error in recognize_person: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ==================== WORKFLOW 3: QUERY PERSON BY NAME ====================
+
+@app.get("/people/search")
+async def search_person_by_name(name: str):
+    """
+    Workflow 3: Query person information by name
+    - Search for person by name (case-insensitive, partial match)
+    - Return person's info if found
+    """
+    try:
+        if not name or name.strip() == "":
+            raise HTTPException(status_code=400, detail="Name parameter is required")
+        
+        # Search for person by name
+        person_info = get_person_info_by_name(name.strip())
+        
+        if not person_info:
+            raise HTTPException(status_code=404, detail=f"No person found with name: {name}")
+        
+        return {
+            "name": person_info.name,
+            "conversation_context": person_info.conversation_context,
+            "first_met_at": person_info.first_met_at.isoformat() if person_info.first_met_at else None,
+            "last_seen_at": person_info.last_seen_at.isoformat() if person_info.last_seen_at else None,
+            "times_met": person_info.times_met
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error in search_person_by_name: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # ==================== TRANSCRIPT ENDPOINT ====================
