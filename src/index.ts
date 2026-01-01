@@ -16,6 +16,14 @@ interface RecognitionResult {
     };
 }
 
+interface PersonQueryResult {
+    name: string;
+    conversation_context?: string;
+    first_met_at?: string;
+    last_seen_at?: string;
+    times_met?: number;
+}
+
 async function extractPersonInfo(conversation: string): Promise<{
     name?: string;
     workplace?: string;
@@ -51,6 +59,31 @@ async function extractPersonInfo(conversation: string): Promise<{
     } catch (apiError) {
         console.error('Gemini API error:', apiError);
         return {};
+    }
+}
+
+async function extractNameFromQuery(query: string): Promise<string | null> {
+    const prompt = `
+    Extract the person's name from this question: "${query}"
+    
+    Examples:
+    "tell me about Sarah" → Sarah
+    "remind me about John Smith" → John Smith
+    "what do I know about Mike" → Mike
+    
+    Return ONLY the name, nothing else. If no name is found, return null.`;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+        });
+
+        const name = (response.text ?? '').trim();
+        return name && name !== 'null' ? name : null;
+    } catch (error) {
+        console.error('Failed to extract name:', error);
+        return null;
     }
 }
 
@@ -92,6 +125,14 @@ class MentraOSApp extends AppServer {
         "it was great to meet you i'll see you later",
         "alright then it was good to meet you",
     ]
+    
+    private readonly QUERY_PHRASES = [
+        "tell me about",
+        "who was",
+        "remind me about",
+        "what do i know about",
+        "who is",
+    ];
 
 
     private conversationBuffer: string[] = []
@@ -115,8 +156,6 @@ class MentraOSApp extends AppServer {
 
         session.events.onTranscription(async (data) => {
             if (!data.isFinal) return;
-
-
 
             console.log('Transcription received:', data.text, 'isFinal:', data.isFinal);
 
@@ -181,6 +220,40 @@ class MentraOSApp extends AppServer {
 
             const command = data.text.toLowerCase();
             console.log('🎯 Processing command:', command);
+
+            // Workflow 3: Query person by name
+            if (this.QUERY_PHRASES.some(phrase => command.includes(phrase))) {
+                try {
+                    const name = await extractNameFromQuery(command);
+
+                    if (!name) {
+                        session.audio.speak("I didn't catch the name").catch(console.error);
+                        return;
+                    }
+
+                    // Query backend for person info
+                    const response = await fetch(`${config.BACKEND_URL}/api/people/search?name=${encodeURIComponent(name)}`);
+
+                    if (!response.ok) {
+                        session.audio.speak("I couldn't find that person").catch(console.error);
+                        return;
+                    }
+
+                    const person = await response.json() as PersonQueryResult;
+
+                    if (person && person.name) {
+                        session.audio.speak(
+                            `${person.name}. ${person.conversation_context || 'No additional information available'}`
+                        ).catch(console.error);
+                    } else {
+                        session.audio.speak("I don't have any information about that person").catch(console.error);
+                    }
+                } catch (err) {
+                    console.error('❌ Query failed:', err);
+                    session.audio.speak("I couldn't look that up right now").catch(console.error);
+                }
+                return; // Don't continue to other workflows
+            }
 
 
 
