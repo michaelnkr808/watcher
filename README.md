@@ -60,7 +60,7 @@ Meet someone → Say "Hey, what's your name?" → 📸 Photo captured (backgroun
 ### 1. Clone & Install Dependencies
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/michaelnkr808/visage/tree/main
 cd mentra-facescan
 
 # Frontend/SDK
