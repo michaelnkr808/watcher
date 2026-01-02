@@ -1,9 +1,9 @@
-import os
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, func
 from sqlalchemy.orm import sessionmaker
 from models.face_scan import Base, Photo, Transcript, DetectedFace, FaceEncoding, PersonInfo
 from config import config
+import numpy as np
 
 load_dotenv()
 
@@ -70,9 +70,14 @@ def save_face_encoding(face_id: int, encoding: list, model_name: str = "Facenet"
     """Save a face encoding (128-d vector)"""
     with SessionLocal() as session:
         try:
+            # Normalize encoding before save
+
+            encoding_array = np.array(encoding)
+            normalized_encoding = (encoding_array / np.linalg.norm(encoding_array)).tolist()
+
             face_encoding = FaceEncoding(
                 face_id=face_id,
-                encoding=encoding,
+                encoding=normalized_encoding,
                 model_name=model_name   
             )
             session.add(face_encoding)
@@ -87,19 +92,27 @@ def find_matching_face(query_encoding: list, threshold: float = None):
     Find a matching face using pgvector similarity search
     Returns the best match if distance < threshold, else None
     """
-
+    # Normalize query encoding
+    query_array = np.array(query_encoding)
+    query_normalized = query_array / np.linalg.norm(query_array)
+        
     if threshold is None:
         threshold = config.FACE_MATCH_THRESHOLD
+
     with SessionLocal() as session:
         # Use pgvector's <-> operator for L2 distance
         result = session.query(
             FaceEncoding,
-            FaceEncoding.encoding.l2_distance(query_encoding).label('distance')
+            FaceEncoding.encoding.l2_distance(query_normalized).label('distance')
         ).order_by('distance').first()
+
+        if not result:
+            return None, None
         
-        if result and result.distance < threshold:
+        if result.distance < threshold:
             return result[0], result.distance
-        return None, None
+        else:
+            return None, result.distance
 
 # Person info helper functions ---------------------------------------
 

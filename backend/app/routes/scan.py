@@ -149,7 +149,7 @@ async def recognize_person(image_data: str = Form(...)):  # Base64-encoded image
                 "success": True,
                 "recognized": False,
                 "message": "Haven't met this person before",
-                "distance": None
+                "distance": float(distance) if distance else None
             }
         
         # Get person info

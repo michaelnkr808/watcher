@@ -64,7 +64,7 @@ def detect_and_encode_face(image_data: bytes) -> Optional[Dict]:
         cropped_face_bytes = buffer.tobytes()
         
         return {
-            'encoding': face_data['embedding'],  # 128-d vector
+            'encoding': face_data['embedding'] / np.linalg.norm(face_data['embedding']),  # 128-d vector
             'bbox': bbox,                        # {x, y, w, h}
             'confidence': confidence,
             'cropped_face': cropped_face_bytes
