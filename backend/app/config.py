@@ -10,13 +10,12 @@ class Config:
     DATABASE_URL = os.getenv("DATABASE_URL")
     
     # Face Recognition Settings
-    FACE_MATCH_THRESHOLD = float(os.getenv("FACE_MATCH_THRESHOLD", "0.6"))
+    FACE_MATCH_THRESHOLD = float(os.getenv("FACE_MATCH_THRESHOLD", "0.85"))
     """
     Distance threshold for face matching (Euclidean distance)
     - Lower values = stricter matching (fewer false positives)
     - Higher values = looser matching (more false positives)
-    - Recommended range: 0.4 - 0.8
-    - Default: 0.6
+    - Default: 0.85
     """
     
     FACE_CONFIDENCE_MIN = float(os.getenv("FACE_CONFIDENCE_MIN", "0.9"))
